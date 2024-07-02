@@ -2,45 +2,73 @@ import cv2
 import numpy as np
 import os
 
+def descriptores(image):
+    image = cv2.imread(image, cv2.IMREAD_GRAYSCALE)
+    if image is None:
+        print(f"Não foi possível carregar a imagem!")
+        return None, None
 
-test_original = cv2.imread("./Banco de Dados/104_6.tif")
-cv2.imshow("Teste",test_original)
-cv2.waitKey(10000)
-cv2.destroyAllWindows()
+    sift = cv2.SIFT_create()
+    keypoints, descriptors = sift.detectAndCompute(image, None)
+
+    return keypoints, descriptors
+
+def Filetxt(file):
+    return np.loadtxt(file, dtype=np.float32)
+
+descriptor = "./Arquivos descritores das impressões digitais/file2.txt"
+test_descriptors = Filetxt(descriptor)
+
 
 match_points = []
-for file in [file for file in os.listdir("./Banco de Dados/")]:
-    print(file)
-    fingerprint_database_image = cv2.imread(f"./Banco de Dados/{file}")
+
+bestImage = None
+bestfile = None
+
+for file in os.listdir("./Banco de Dados"):
+      fingerprint_database_image_path = os.path.join("./Banco de Dados", file)
+      fingerprint_database_image = cv2.imread(fingerprint_database_image_path, cv2.IMREAD_GRAYSCALE)
+      cv2.imshow("Imagem banco", fingerprint_database_image)
+      cv2.waitKey(5000)
+      cv2.destroyAllWindows()
+
+      if fingerprint_database_image is None:
+          print(f"Não foi possível carregar a imagem!")
+          continue
+      
+      keypoints1, descriptors = descriptores(fingerprint_database_image_path)
+
+      if descriptors is None:
+          continue
+
+      
+      flann = cv2.FlannBasedMatcher(dict(algorithm=1, trees=5), dict(checks=50))
+      matches = flann.knnMatch(test_descriptors, descriptors, k=2)
+
+      
+      Bestmatches = []
+      for p, q in matches:
+          if p.distance < 0.75 * q.distance:
+              Bestmatches.append(p)
+
+      
+      if len(Bestmatches) / len(test_descriptors) > 0:
+          match_points.extend(Bestmatches)
+          bestImage = fingerprint_database_image
+          bestfile = file
+          break
+
+if bestImage is not None:
+    keypoints = len(test_descriptors)
+    print(f"Keypoints: {keypoints}")
+    print(f"Match Points: {len(match_points)}")
+    print(f"Percentual de correspondentes: {len(match_points) / keypoints * 100:.2f}%")
+    print(f"Fingerprint ID: {bestfile}")
+
     
-    sift = cv2.SIFT_create()
-    
-    keypoints_1, descriptors_1 = sift.detectAndCompute(test_original, None)
-    keypoints_2, descriptors_2 = sift.detectAndCompute(fingerprint_database_image, None)
-    matches = cv2.FlannBasedMatcher(dict(algorithm=1, trees=10), 
-    dict()).knnMatch(descriptors_1, descriptors_2, k=2)
-    
-   
+    result = cv2.drawMatches(bestImage, keypoints1, bestImage, keypoints1, match_points, None)
+    result = cv2.resize(result, None, fx=1.5, fy=1.5)
+    cv2.imshow("Resultado", result)
+    cv2.waitKey(10000)
+    cv2.destroyAllWindows()
 
-    for p, q in matches:
-      if p.distance < 0.75*q.distance:
-          match_points.append(p)
-for file in [file for file in os.listdir("./Arquivos descritores das impressões digitais/")]: 
-    descritores = np.loadtxt("./Arquivos descritores das impressões digitais/"+file+"/file"+file, dtype=float)
-
-
-
-keypoints = 0
-if len(keypoints_1) <= len(keypoints_2):
-  keypoints = len(keypoints_1)      
-else:
-  keypoints = len(keypoints_2)
-print(keypoints)  
-print(len(match_points))
-if (len(match_points) / keypoints)>0.3:
-  print("% match: ", len(match_points) / keypoints * 100)
-  print("Figerprint ID: " + str(file)) 
-  result = cv2.drawMatches(test_original, keypoints_1, fingerprint_database_image, keypoints_2, match_points, None) 
-  result = cv2.resize(result, None, fx=2.5, fy=2.5)
-  cv2.imshow(result)
-  cv2.waitKey(10000)
